@@ -1,0 +1,91 @@
+<html>
+    <body>
+        <head>
+            <script src="https://d3js.org/d3.v7.min.js"></script>
+            <script src="https://d3js.org/topojson.v3.min.js"></script>
+        </head>
+        <p id ="p1">
+            <h1>New York State Income Distribution</h1>
+            <h2>Double Click to Zoom-In/Zoom-Out the Map</h2>
+            <svg id="choropleth" height="770" width="990" style="margin:20px"></svg>
+            <ul id = "thresholds"></ul>
+            <script>
+                const svg = d3.select("svg#choropleth");
+                //const thresholds = d3.select("ul#thresholds");
+                const width = svg.attr("width");
+                const height = svg.attr("height");
+                const margin = { top: 20, right: 20, bottom: 20, left:20};
+                const mapWidth = width - margin.left - margin.right;
+                const mapHeight = height - margin.top - margin.bottom;
+                const map = svg.append("g")
+                                .attr("transform","translate("+margin.left+","+margin.top+")");
+              
+                const requestDataFF = async function() {
+                const nyincome = await d3.json('ny_income.topo.json');
+                var zips = topojson.feature(nyincome, nyincome.objects.zip_codes);
+                var zipsMesh = topojson.mesh(nyincome, nyincome.objects.zip_codes);
+                var stateMesh = topojson.mesh(nyincome, nyincome.objects.state);
+                var projection = d3.geoMercator().fitSize([mapWidth, mapHeight], zips);
+                var path = d3.geoPath().projection(projection);
+                let df_array = nyincome.objects.zip_codes.geometries;
+                let result_array = [];
+                // element.properties.median_income
+                d3.map(df_array, function(d) {
+                    result_array.push(d.properties.median_income);
+                });
+                let minmax = d3.extent(result_array);
+                const colorScale = d3.scaleQuantile()
+                        .domain(result_array)
+                        .range(["#683611","#96581C","#D2973E","#EEC76F","#F6E8B8"]);
+                const viewport = svg.append("g");
+                viewport.append("path").datum(stateMesh)
+                        .attr("class","state-outline")
+                        .attr("d", path)
+                        .style("stroke", "darkgrey")
+                        .style("fill", "None")
+                        .style("stroke-width", 3);
+                viewport.selectAll("path.zips").data(zips.features)
+                        .join("path")
+                        .attr("class", "zips")
+                        .style("fill", d => colorScale(d.properties.median_income) )
+                        .attr("d", path);
+                viewport.append("path").datum(zipsMesh)
+                        .attr("class","zip-outline")
+                        .attr("d", path)
+                        .style("fill", "None")
+                        .style("stroke", "white")
+                        .style("stroke-width", 1);
+                
+                        
+                Position = projection([-76.4850, 42.4476])
+                viewport.append('circle')
+                        .attr("cx", Position[0])
+                        .attr("cy", Position[1])
+                        .attr("r", 5)
+                        .attr("fill", "black");
+                function mapZoomed({transform}) {
+                        viewport.attr("transform", transform.toString() );
+                        viewport.select(".zip-outline")
+                                .style("stroke-width", 1 / transform.k);
+                        viewport.select(".state-outline")
+                                .style("stroke-width", 1 / transform.k);
+                }
+                var zoom = d3.zoom()
+                  .scaleExtent([1,10])
+                  .translateExtent([[-50,-50],[mapWidth+50,mapHeight+50]])
+                  .on("zoom", mapZoomed);
+                viewport.call(zoom);
+                var list_color = colorScale.quantiles()
+                list_color.forEach( (d) => {
+                    var ul = document.getElementById("thresholds");
+                    var li = document.createElement("li");
+                    li.appendChild(document.createTextNode(d3.format(".0f")(d)));
+                    ul.appendChild(li);
+                })
+            
+            }
+            requestDataFF();
+            </script>
+        </p>
+    </body>
+</html>
